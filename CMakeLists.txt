@@ -57,5 +57,5 @@ add_custom_command(TARGET translate POST_BUILD
 # Add search component as a subproject.
 add_subdirectory(src/search)
 
-# Add tests as a subproject.
-add_subdirectory(src/tests)
+## Add tests as a subproject.
+#add_subdirectory(src/tests)

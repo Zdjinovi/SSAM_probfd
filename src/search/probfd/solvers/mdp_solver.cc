@@ -2,6 +2,8 @@
 
 #include "probfd/tasks/root_task.h"
 
+#include "probfd/task_utils/task_properties.h"
+
 #include "probfd/caching_task_state_space.h"
 
 #include "probfd/evaluator.h"
@@ -12,7 +14,8 @@
 
 #include "downward/utils/timer.h"
 
-#include "downward/utils/exceptions.h"
+#include "downward/utils/rng.h"
+#include "downward/utils/rng_options.h"
 
 #include "downward/plugins/options.h"
 #include "downward/plugins/plugin.h"
@@ -65,6 +68,9 @@ MDPSolver::MDPSolver(const Options& opts)
     , max_time_(opts.get<double>("max_time"))
     , policy_filename(opts.get<std::string>("policy_file"))
     , print_fact_names(opts.get<bool>("print_fact_names"))
+    , trajectories(opts.get<int>("trajectories"))
+    , trajectory_length(opts.get<int>("trajectory_length"))
+    , rng(utils::parse_rng_from_options(opts))
 {
     progress_.register_print([&ss = *this->task_mdp_](std::ostream& out) {
         out << "registered=" << ss.get_num_registered_states();
@@ -108,7 +114,6 @@ void MDPSolver::solve()
             print_analysis_result(
                 policy->get_decision(initial_state)->q_value_interval);
 
-            std::ofstream out(policy_filename);
             auto print_state = [this](const State& state, std::ostream& out) {
                 if (print_fact_names) {
                     out << state[0].get_name();
@@ -132,7 +137,65 @@ void MDPSolver::solve()
                     out << this->task_->get_operator_name(op_id.get_index());
                 };
 
-            policy->print(out, print_state, print_action);
+            {
+                std::ofstream out(policy_filename);
+                policy->print(out, print_state, print_action);
+            }
+
+            {
+                ProbabilisticTaskProxy task_proxy(*task_);
+                ProbabilisticOperatorsProxy operators =
+                    task_proxy.get_operators();
+
+                StateRegistry& state_registry = task_mdp_->get_state_registry();
+
+                for (int i = 0; i < trajectories; ++i) {
+                    std::ofstream out(
+                        std::string("trajectory_") + std::to_string(i) +
+                        ".plan");
+
+                    State state = state_registry.get_initial_state();
+                    value_t plan_cost = 0;
+                    int step = 0;
+
+                    while (auto decision = policy->get_decision(state)) {
+                        auto op = operators[decision->action];
+
+                        // Sample outcome
+                        int outcome_index = 0;
+                        value_t prob_sum = 0_vt;
+
+                        // Ramdom number p in [0, 1)
+                        double p = rng->random();
+                        for (;;) {
+                            prob_sum += op.get_outcomes()[outcome_index]
+                                            .get_probability();
+                            if (p <= prob_sum) break;
+                            ++outcome_index;
+                        }
+
+                        auto outcome = op.get_outcomes()[outcome_index];
+
+			print_state(state, out);
+			out << "(" << op.get_name() << " [outcome "
+                            << outcome_index << "])" << endl;
+
+                        state = state_registry.get_successor_state(
+                            state,
+                            outcome.get_effects());
+                        plan_cost += op.get_cost();
+
+                        if (++step == trajectory_length) break;
+                    }
+
+                    print_state(state, out);
+		    out << "; cost = " << plan_cost << " ("
+                        << (task_properties::is_unit_cost(task_proxy)
+                                ? "unit cost"
+                                : "general cost")
+                        << ")" << endl;
+                }
+            }
         }
 
         std::cout << std::endl;
@@ -175,6 +238,10 @@ void MDPSolver::add_options_to_feature(Feature& feature)
     feature.add_option<double>("max_time", "", "infinity");
     feature.add_option<std::string>("policy_file", "", "\"my_policy.policy\"");
     feature.add_option<bool>("print_fact_names", "", "true");
+    feature.add_option<int>("trajectories", "", "0");
+    feature.add_option<int>("trajectory_length", "", "100");
+    utils::add_rng_options(feature);
+
     utils::add_log_options_to_feature(feature);
 }
 

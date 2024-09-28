@@ -106,6 +106,8 @@ public:
         OperatorID op_id,
         Distribution<StateID>& successors);
 
+    StateRegistry& get_state_registry() { return state_registry_; }
+
 protected:
     void
     compute_applicable_operators(const State& s, std::vector<OperatorID>& ops);

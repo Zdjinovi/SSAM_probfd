@@ -19,6 +19,10 @@ class Options;
 class Feature;
 } // namespace plugins
 
+namespace utils {
+class RandomNumberGenerator;
+};
+
 namespace probfd {
 class ProbabilisticTask;
 }
@@ -45,6 +49,10 @@ private:
     const double max_time_;
     const std::string policy_filename;
     const bool print_fact_names;
+
+    const int trajectories;
+    const int trajectory_length;
+    const std::shared_ptr<utils::RandomNumberGenerator> rng;
 
     bool solution_found_ = true;
 
