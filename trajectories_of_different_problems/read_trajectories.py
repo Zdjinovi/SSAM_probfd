@@ -52,7 +52,7 @@ def get_all_boundedl(f,a):
 	Lset.update(Ls2)
 	return Lset
 
-
+############################### read the trajectories:
 K = 588
 traces = []
 for i in range(1,K):
@@ -99,6 +99,8 @@ for i,f in enumerate(lifted_f_list):
 for f in lifted_f_list:
 	print(f)
 
+
+#################################### get lifted states:
 lifted_states = []
 
 for tr in traces:
@@ -152,12 +154,14 @@ for st in lifted_states:
 	print(st[1])
 	print()
 
+##################################### construct the tensors:
 
+################ construct tensor T1
 import torch
 N = len(lifted_states[0][0])
 
 shape = (N,N,N)
-m = torch.zeros(shape)
+T1 = torch.zeros(shape)
 
 def dfs_genMtrxIdx(d, curr_idx_set, st):
     if d==0:
@@ -177,12 +181,44 @@ for s in range(N_tran):
     dfs_genMtrxIdx(degree,[],state)
     # print(collect)
     for idx in collect:
-        m[tuple(idx)]+=1
+        T1[tuple(idx)]+=1
 
 print(N)
 print(N_tran)
-print(sum(sum(sum(m))))
-print(m)
+print(sum(sum(sum(T1))))
+# print(m)
+
+########## construct tensor T0
+N = len(lifted_states[0][0])
+
+shape = (N,N,N)
+T0 = torch.zeros(shape)
+
+def dfs_genMtrxIdx_preNeg(d, curr_idx_set, st):
+    if d==0:
+        collect_preNeg.append(curr_idx_set)
+        return
+
+    for i in range(N):
+        if st[0][i]==False:
+            dfs_genMtrxIdx_preNeg(d-1, curr_idx_set+[i],st)
+    return
+
+N_tran = len(lifted_states)
+degree = 3
+for s in range(N_tran):
+    state = lifted_states[s]
+    collect_preNeg = []
+    dfs_genMtrxIdx_preNeg(degree,[],state)
+    # print(collect)
+    for idx in collect_preNeg:
+        T0[tuple(idx)]+=1
+
+print(N)
+print(N_tran)
+print(sum(sum(sum(T0))))
+
+
 
 
 
